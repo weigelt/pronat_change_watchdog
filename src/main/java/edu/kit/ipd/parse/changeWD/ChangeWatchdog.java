@@ -1,10 +1,11 @@
 package edu.kit.ipd.parse.changeWD;
 
-import edu.kit.ipd.parse.luna.AbstractLuna;
 import edu.kit.ipd.parse.luna.agent.AbstractAgent;
 import edu.kit.ipd.parse.luna.agent.AbstractWatchdog;
 import edu.kit.ipd.parse.luna.tools.ConfigManager;
 import org.kohsuke.MetaInfServices;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Properties;
 
@@ -17,28 +18,25 @@ import java.util.Properties;
 public class ChangeWatchdog extends AbstractWatchdog {
 
 	private static final String ID = "changeWatchdog";
+	private static final Logger logger = LoggerFactory.getLogger(ChangeWatchdog.class);
 	private static final Properties wdProps = ConfigManager.getConfiguration(ChangeWatchdog.class);
-	private static final Properties lunaProps = ConfigManager.getConfiguration(AbstractLuna.class);
 
 	private static final String PROP_TIMEOUT_THRESHOLD = "CHANGE_TIMEOUT_THRESHOLD";
-	private static final String PROP_TERM_SIGNAL_TYPE = "TERM_SIGNAL_TYPE";
 
-	private String termSignalType;
 	private long cto_threshold;
-	private long lastChangeTime = -1;
-	private long lastGraphHash = -1;
+	private long currTime = -1;
 
 	public ChangeWatchdog() {
 		setId(ID);
 	}
 
 	/**
-	 * 
+	 * Initializes the agent. Simply fetches the timeout threshold from the config
+	 * file.
 	 */
 	@Override
 	public void init() {
 		cto_threshold = Long.parseLong(wdProps.getProperty(PROP_TIMEOUT_THRESHOLD));
-		termSignalType = lunaProps.getProperty(PROP_TERM_SIGNAL_TYPE);
 	}
 
 	/**
@@ -47,15 +45,20 @@ public class ChangeWatchdog extends AbstractWatchdog {
 	@Override
 	protected void exec() {
 
-		long currHash = graph.hashCode();
-		if (lastGraphHash != currHash) {
-			lastChangeTime = System.currentTimeMillis();
-		} else {
-			long currTime = System.currentTimeMillis();
-			if (currTime - lastChangeTime > cto_threshold) {
-				graph.createNodeType(termSignalType);
-			}
+		currTime = System.currentTimeMillis();
+
+		if (checkTimeout()) {
+			logger.info("Creating timeout signal. Last change was {} and now it is {}, which makes a diff of {}",
+					graph.getLastChangedMillis(), currTime, (currTime - graph.getLastChangedMillis()));
+			terminate();
 		}
-		lastGraphHash = currHash;
+	}
+
+	private boolean checkTimeout() {
+		if (currTime - graph.getLastChangedMillis() >= cto_threshold) {
+			return true;
+		} else {
+			return false;
+		}
 	}
 }

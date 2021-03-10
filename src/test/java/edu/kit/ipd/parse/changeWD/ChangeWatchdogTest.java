@@ -1,9 +1,12 @@
 package edu.kit.ipd.parse.changeWD;
 
+import edu.kit.ipd.parse.luna.ILuna;
 import edu.kit.ipd.parse.luna.Luna;
+import edu.kit.ipd.parse.luna.event.AbortEvent;
 import edu.kit.ipd.parse.luna.graph.IGraph;
 import edu.kit.ipd.parse.luna.graph.ParseGraph;
 import edu.kit.ipd.parse.luna.tools.ConfigManager;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -20,21 +23,17 @@ import static org.junit.Assert.assertTrue;
 public class ChangeWatchdogTest {
 
 	private static final Properties wdProps = ConfigManager.getConfiguration(ChangeWatchdog.class);
-	private static final Properties lunaProps = ConfigManager.getConfiguration(Luna.class);
 
-	private IGraph graph;
 	private ChangeWatchdog cwd;
-
-	@BeforeClass
-	public static void SetUp() {
-		lunaProps.setProperty("TERM_SIGNAL_TYPE", "terminate");
-	}
 
 	@Before
 	public void beforeTest() {
-		graph = new ParseGraph();
 		cwd = new ChangeWatchdog();
-		cwd.init();
+	}
+
+	@After
+	public void tearDown() {
+		Luna.tearDown();
 	}
 
 	/**
@@ -43,18 +42,18 @@ public class ChangeWatchdogTest {
 	 */
 	@Test
 	public void testExec4000msNoChange() {
-
-		wdProps.setProperty("TIMEOUT_THRESHOLD", "4000");
-		cwd.setGraph(graph);
-		cwd.exec();
-		try {
-			Thread.sleep(4100);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+		ILuna luna = Luna.getInstance();
+		wdProps.setProperty("CHANGE_TIMEOUT_THRESHOLD", "4000");
+		luna.register(cwd);
+		cwd.initAbstract(luna);
+		long start = System.currentTimeMillis();
+		long curr = start;
+		while (curr - start < 4001) {
+			cwd.setGraph(luna.getMainGraph());
+			cwd.exec();
+			curr = System.currentTimeMillis();
 		}
-		cwd.setGraph(graph);
-		cwd.exec();
-		assertTrue(graph.hasNodeType("terminate"));
+		assertTrue(cwd.getCurrEvent() instanceof AbortEvent);
 	}
 
 	/**
@@ -62,48 +61,50 @@ public class ChangeWatchdogTest {
 	 * exceeded and the graph remains unaltered.
 	 */
 	@Test
-	public void testExec5000msNoChangeFail() {
-
-		wdProps.setProperty("TIMEOUT_THRESHOLD", "5000");
-		cwd.setGraph(graph);
-		cwd.exec();
-		try {
-			Thread.sleep(3000);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+	public void testExec4000msNoChangeFail() {
+		ILuna luna = Luna.getInstance();
+		wdProps.setProperty("CHANGE_TIMEOUT_THRESHOLD", "4000");
+		luna.register(cwd);
+		cwd.initAbstract(luna);
+		long start = System.currentTimeMillis();
+		long curr = start;
+		assertFalse(cwd.getCurrEvent() instanceof AbortEvent);
+		while (curr - start < 3900) {
+			cwd.setGraph(luna.getMainGraph());
+			cwd.exec();
+			curr = System.currentTimeMillis();
 		}
-		cwd.setGraph(graph);
-		cwd.exec();
-		assertFalse(graph.hasNodeType("terminate"));
+		assertFalse(cwd.getCurrEvent() instanceof AbortEvent);
 	}
 
 	/**
 	 * Tests whether the agent doesn't add the term node after 7 consecutive graph
-	 * changes (with a timeout of 1000ms) and has added the term node type after
-	 * another timeout of 6000ms without a change to the graph.
+	 * changes (with a timeout of 500) and has added the term node type after
+	 * another timeout of 2500 without a change to the graph.
 	 */
 	@Test
 	public void testMultExec5000ms() {
-
-		wdProps.setProperty("TIMEOUT_THRESHOLD", "5000");
+		ILuna luna = Luna.getInstance();
+		wdProps.setProperty("CHANGE_TIMEOUT_THRESHOLD", "2000");
+		luna.register(cwd);
+		cwd.initAbstract(luna);
 		for (int i = 0; i < 7; i++) {
-			graph.createNodeType(String.valueOf(i));
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
+			luna.getMainGraph().createNodeType(String.valueOf(i));
+			long start = System.currentTimeMillis();
+			long curr = start;
+			while (curr - start < 500) {
+				cwd.setGraph(luna.getMainGraph());
+				cwd.exec();
+				curr = System.currentTimeMillis();
 			}
-			cwd.setGraph(graph);
+			assertFalse(cwd.getCurrEvent() instanceof AbortEvent);
+		}
+		long start = System.currentTimeMillis();
+		long curr = start;
+		while (curr - start < 2500) {
 			cwd.exec();
-			assertFalse(graph.hasNodeType("terminate"));
+			curr = System.currentTimeMillis();
 		}
-		try {
-			Thread.sleep(6000);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-		cwd.setGraph(graph);
-		cwd.exec();
-		assertTrue(graph.hasNodeType("terminate"));
+		assertTrue(cwd.getCurrEvent() instanceof AbortEvent);
 	}
 }
