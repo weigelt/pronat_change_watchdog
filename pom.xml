@@ -9,7 +9,7 @@
         <version>0.0.5-SNAPSHOT</version>
     </parent>
     <artifactId>change_watchdog</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.2</version>
 
     <repositories>
         <repository>
