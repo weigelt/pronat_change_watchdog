@@ -1,14 +1,11 @@
-package edu.kit.ipd.parse.changeWD;
+package edu.kit.ipd.pronat.change_watchdog;
 
 import edu.kit.ipd.parse.luna.ILuna;
 import edu.kit.ipd.parse.luna.Luna;
 import edu.kit.ipd.parse.luna.event.AbortEvent;
-import edu.kit.ipd.parse.luna.graph.IGraph;
-import edu.kit.ipd.parse.luna.graph.ParseGraph;
 import edu.kit.ipd.parse.luna.tools.ConfigManager;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.util.Properties;
